@@ -1,0 +1,12 @@
+# Local planning / assistant files — kept out of the repo
+notes.md
+CLAUDE.md
+
+# Build artifacts
+build/
+*.o
+*.out
+
+# Market-data files can be large
+data/*
+!data/.gitkeep
