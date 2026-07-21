@@ -37,7 +37,18 @@ void OrderBook::cancel(OrderId id) {
 }
 
 void OrderBook::execute(OrderId id, Quantity qty) {
-    // TODO
+    auto it = orders_.find(id);
+    if (it == orders_.end()) return;   // unknown id, nothing to do
+    Order& o = it->second;
+
+    if (qty >= o.qty) {                // fully filled -> drop the order
+        remove(o);
+        orders_.erase(it);
+    } else {                          // partial fill -> just shrink it
+        o.qty -= qty;
+        auto& book = (o.side == Side::Buy) ? bids_ : asks_;
+        book[index(o.price)].total_qty -= qty;
+    }
 }
 
 Quantity OrderBook::qty_at(Side side, Price price) const {
