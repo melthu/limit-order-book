@@ -130,12 +130,25 @@ static void test_snapshot() {
     CHECK(asks[1].price == 10009 && asks[1].qty == 80);
 }
 
+static void test_return_values() {
+    OrderBook book(10000, 1000);
+    CHECK(book.cancel(999) == false);      // unknown id reports false
+    CHECK(book.execute(999, 5) == false);
+
+    book.add(1, Side::Sell, 10008, 40);
+    CHECK(book.execute(1, 10) == true);    // known id reports true
+    CHECK(book.best_ask_qty() == 30);
+    CHECK(book.cancel(1) == true);
+    CHECK(book.execute(1, 5) == false);    // already gone
+}
+
 int main() {
     test_add();
     test_cancel();
     test_execute();
     test_bounds();
     test_snapshot();
+    test_return_values();
 
     if (failures == 0) {
         std::puts("all tests passed");

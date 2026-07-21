@@ -38,8 +38,8 @@ public:
     OrderBook(Price base_tick, std::size_t num_ticks);
 
     void add(OrderId id, Side side, Price price, Quantity qty);
-    void cancel(OrderId id);
-    void execute(OrderId id, Quantity qty);   // qty of order `id` traded away
+    bool cancel(OrderId id);                   // false if id isn't resting
+    bool execute(OrderId id, Quantity qty);    // reduce order `id`; false if not resting
 
     bool     has_bid() const { return best_bid_idx_ >= 0; }
     bool     has_ask() const { return best_ask_idx_ >= 0; }

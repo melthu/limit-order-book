@@ -10,3 +10,8 @@ target_include_directories(tests PRIVATE src)
 add_executable(bench bench/bench.cpp src/order_book.cpp)
 target_include_directories(bench PRIVATE src)
 target_compile_options(bench PRIVATE -O2)
+
+# LOBSTER replay + book validation driver
+add_executable(obe src/main.cpp src/lobster_parser.cpp src/order_book.cpp)
+target_include_directories(obe PRIVATE src)
+target_compile_options(obe PRIVATE -O2)

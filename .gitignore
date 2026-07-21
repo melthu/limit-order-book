@@ -8,6 +8,9 @@ build/
 *.o
 *.out
 
+# macOS
+.DS_Store
+
 # Market-data files can be large
 data/*
 !data/.gitkeep

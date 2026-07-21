@@ -30,16 +30,17 @@ void OrderBook::add(OrderId id, Side side, Price price, Quantity qty) {
     }
 }
 
-void OrderBook::cancel(OrderId id) {
+bool OrderBook::cancel(OrderId id) {
     auto it = orders_.find(id);
-    if (it == orders_.end()) return;   // unknown id, nothing to do
+    if (it == orders_.end()) return false;   // unknown id, nothing to do
     remove(it->second);
     orders_.erase(it);
+    return true;
 }
 
-void OrderBook::execute(OrderId id, Quantity qty) {
+bool OrderBook::execute(OrderId id, Quantity qty) {
     auto it = orders_.find(id);
-    if (it == orders_.end()) return;   // unknown id, nothing to do
+    if (it == orders_.end()) return false;   // unknown id, nothing to do
     Order& o = it->second;
 
     if (qty >= o.qty) {                // fully filled -> drop the order
@@ -50,6 +51,7 @@ void OrderBook::execute(OrderId id, Quantity qty) {
         auto& book = (o.side == Side::Buy) ? bids_ : asks_;
         book[index(o.price)].total_qty -= qty;
     }
+    return true;
 }
 
 Quantity OrderBook::qty_at(Side side, Price price) const {
