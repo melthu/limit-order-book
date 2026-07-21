@@ -1,7 +1,11 @@
 #include "order_book.hpp"
+#include "signals.hpp"
+#include <cmath>
 #include <cstdio>
 
 static int failures = 0;
+
+static bool near(double a, double b) { return std::fabs(a - b) < 1e-9; }
 
 #define CHECK(cond)                                                      \
     do {                                                                 \
@@ -155,6 +159,29 @@ static void test_find() {
     CHECK(book.find(7) == nullptr);        // gone after cancel
 }
 
+static void test_signals() {
+    Signals sig;
+
+    Signal a = sig.update(10000, 100, 10005, 100);   // first event, equal sizes
+    CHECK(near(a.ofi, 0.0));                          // no previous state
+    CHECK(near(a.imbalance, 0.0));
+    CHECK(near(a.mid, 10002.5));
+    CHECK(near(a.micro_dev, 0.0));                    // equal sizes -> microprice = mid
+
+    Signal b = sig.update(10000, 150, 10005, 100);    // bid size +50 (buying pressure)
+    CHECK(near(b.ofi, 50.0));
+    CHECK(near(b.imbalance, 0.2));                     // (150-100)/250
+
+    Signal c = sig.update(10002, 80, 10005, 100);     // bid price up
+    CHECK(near(c.ofi, 80.0));
+
+    Signal d = sig.update(10002, 80, 10004, 60);      // ask price down (selling pressure)
+    CHECK(near(d.ofi, -60.0));
+
+    Signal e = sig.update(10000, 300, 10004, 100);    // heavy bid
+    CHECK(e.micro_dev > 0.0);                          // fair value leans above mid
+}
+
 int main() {
     test_add();
     test_cancel();
@@ -163,6 +190,7 @@ int main() {
     test_snapshot();
     test_return_values();
     test_find();
+    test_signals();
 
     if (failures == 0) {
         std::puts("all tests passed");
