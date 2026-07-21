@@ -30,7 +30,10 @@ void OrderBook::add(OrderId id, Side side, Price price, Quantity qty) {
 }
 
 void OrderBook::cancel(OrderId id) {
-    // TODO
+    auto it = orders_.find(id);
+    if (it == orders_.end()) return;   // unknown id, nothing to do
+    remove(it->second);
+    orders_.erase(it);
 }
 
 void OrderBook::execute(OrderId id, Quantity qty) {
@@ -43,13 +46,33 @@ Quantity OrderBook::qty_at(Side side, Price price) const {
 }
 
 void OrderBook::remove(Order& o) {
-    // TODO
+    auto& book = (o.side == Side::Buy) ? bids_ : asks_;
+    PriceLevel& lvl = book[index(o.price)];
+
+    // splice out of the doubly linked list
+    if (o.prev) o.prev->next = o.next;
+    else        lvl.head = o.next;     // was the head
+    if (o.next) o.next->prev = o.prev;
+    else        lvl.tail = o.prev;     // was the tail
+
+    lvl.total_qty -= o.qty;
+
+    // if the best level just emptied, walk to the next live one
+    if (lvl.head == nullptr) {
+        if (o.side == Side::Buy  && index(o.price) == best_bid_idx_) rescan_best_bid();
+        if (o.side == Side::Sell && index(o.price) == best_ask_idx_) rescan_best_ask();
+    }
 }
 
 void OrderBook::rescan_best_bid() {
-    // TODO
+    int i = best_bid_idx_;
+    while (i >= 0 && bids_[i].head == nullptr) --i;
+    best_bid_idx_ = i;                 // -1 if the whole side is empty
 }
 
 void OrderBook::rescan_best_ask() {
-    // TODO
+    int i = best_ask_idx_;
+    int n = static_cast<int>(asks_.size());
+    while (i < n && asks_[i].head == nullptr) ++i;
+    best_ask_idx_ = (i < n) ? i : -1;
 }

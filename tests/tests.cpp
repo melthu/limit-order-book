@@ -24,6 +24,29 @@ int main() {
     assert(book.best_ask_qty() == 75);
     assert(book.qty_at(Side::Buy, 10003) == 200);  // the worse bid level
 
-    std::puts("add ok");
+    // cancels
+    book.add(6, Side::Buy, 10005, 30);    // 10005 queue is now #1, #2, #6
+    assert(book.best_bid_qty() == 180);
+
+    book.cancel(2);                        // unlink from the middle of the queue
+    assert(book.best_bid_qty() == 130);    // 100 + 30 remain
+    assert(book.best_bid() == 10005);
+
+    book.cancel(1);                        // unlink the head
+    assert(book.best_bid_qty() == 30);
+
+    book.cancel(6);                        // last order gone -> best bid drops a level
+    assert(book.best_bid() == 10003);
+    assert(book.best_bid_qty() == 200);
+
+    book.cancel(4);                        // best ask level empties -> ask drops
+    assert(book.best_ask() == 10010);
+    assert(book.best_ask_qty() == 80);
+
+    book.cancel(999);                      // unknown id is a no-op
+    assert(book.best_bid() == 10003);
+    assert(book.best_ask() == 10010);
+
+    std::puts("add + cancel ok");
     return 0;
 }
