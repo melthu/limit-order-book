@@ -1,6 +1,7 @@
 # Local planning / assistant files — kept out of the repo
 notes.md
 CLAUDE.md
+*.html
 
 # Build artifacts
 build/
