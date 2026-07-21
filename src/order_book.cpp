@@ -54,6 +54,11 @@ bool OrderBook::execute(OrderId id, Quantity qty) {
     return true;
 }
 
+const Order* OrderBook::find(OrderId id) const {
+    auto it = orders_.find(id);
+    return (it == orders_.end()) ? nullptr : &it->second;
+}
+
 Quantity OrderBook::qty_at(Side side, Price price) const {
     int i = index(price);
     if (!in_range(i)) return 0;

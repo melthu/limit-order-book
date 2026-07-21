@@ -50,6 +50,7 @@ public:
 
     Quantity qty_at(Side side, Price price) const;
     std::size_t dropped() const { return dropped_; }  // orders skipped as out of range
+    const Order* find(OrderId id) const;              // resting order, or nullptr
 
     // fill out[0..n) with the n best levels (best first); returns how many were live
     int top_bids(BookLevel* out, int n) const;

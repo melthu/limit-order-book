@@ -142,6 +142,19 @@ static void test_return_values() {
     CHECK(book.execute(1, 5) == false);    // already gone
 }
 
+static void test_find() {
+    OrderBook book(10000, 1000);
+    book.add(7, Side::Buy, 10005, 100);
+
+    const Order* o = book.find(7);
+    CHECK(o != nullptr);
+    CHECK(o->side == Side::Buy && o->price == 10005 && o->qty == 100);
+    CHECK(book.find(999) == nullptr);      // unknown id
+
+    book.cancel(7);
+    CHECK(book.find(7) == nullptr);        // gone after cancel
+}
+
 int main() {
     test_add();
     test_cancel();
@@ -149,6 +162,7 @@ int main() {
     test_bounds();
     test_snapshot();
     test_return_values();
+    test_find();
 
     if (failures == 0) {
         std::puts("all tests passed");

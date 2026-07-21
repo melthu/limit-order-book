@@ -15,3 +15,8 @@ target_compile_options(bench PRIVATE -O2)
 add_executable(obe src/main.cpp src/lobster_parser.cpp src/order_book.cpp)
 target_include_directories(obe PRIVATE src)
 target_compile_options(obe PRIVATE -O2)
+
+# ITCH replay + invariant checks driver
+add_executable(itch src/itch_main.cpp src/itch_parser.cpp src/order_book.cpp)
+target_include_directories(itch PRIVATE src)
+target_compile_options(itch PRIVATE -O2)
