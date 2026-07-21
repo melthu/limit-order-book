@@ -59,6 +59,23 @@ Quantity OrderBook::qty_at(Side side, Price price) const {
     return book[i].total_qty;
 }
 
+int OrderBook::top_bids(BookLevel* out, int n) const {
+    int c = 0;
+    for (int i = best_bid_idx_; i >= 0 && c < n; --i) {   // best bid = highest price
+        if (bids_[i].head) out[c++] = { base_tick_ + i, bids_[i].total_qty };
+    }
+    return c;
+}
+
+int OrderBook::top_asks(BookLevel* out, int n) const {
+    int c = 0;
+    int sz = static_cast<int>(asks_.size());
+    for (int i = best_ask_idx_; i >= 0 && i < sz && c < n; ++i) {  // best ask = lowest price
+        if (asks_[i].head) out[c++] = { base_tick_ + i, asks_[i].total_qty };
+    }
+    return c;
+}
+
 void OrderBook::remove(Order& o) {
     auto& book = (o.side == Side::Buy) ? bids_ : asks_;
     PriceLevel& lvl = book[index(o.price)];

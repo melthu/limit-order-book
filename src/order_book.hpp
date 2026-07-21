@@ -26,6 +26,12 @@ struct PriceLevel {
     Order*   tail = nullptr;
 };
 
+// one aggregated level, handed out by the top-of-book snapshot
+struct BookLevel {
+    Price    price;
+    Quantity qty;
+};
+
 class OrderBook {
 public:
     // base_tick is the price at index 0; num_ticks is how many levels we reserve
@@ -44,6 +50,10 @@ public:
 
     Quantity qty_at(Side side, Price price) const;
     std::size_t dropped() const { return dropped_; }  // orders skipped as out of range
+
+    // fill out[0..n) with the n best levels (best first); returns how many were live
+    int top_bids(BookLevel* out, int n) const;
+    int top_asks(BookLevel* out, int n) const;
 
 private:
     int  index(Price p) const { return p - base_tick_; }

@@ -109,11 +109,33 @@ static void test_bounds() {
     CHECK(book.qty_at(Side::Buy, 9000) == 0);  // out-of-range query is safe
 }
 
+static void test_snapshot() {
+    OrderBook book(10000, 1000);
+    book.add(1, Side::Buy, 10005, 100);
+    book.add(2, Side::Buy, 10003, 200);   // gap at 10004
+    book.add(3, Side::Buy, 10005, 50);    // adds to the top level
+    book.add(4, Side::Sell, 10008, 75);
+    book.add(5, Side::Sell, 10009, 80);
+
+    BookLevel bids[3];
+    int nb = book.top_bids(bids, 3);
+    CHECK(nb == 2);                        // only two live bid levels
+    CHECK(bids[0].price == 10005 && bids[0].qty == 150);  // best first, aggregated
+    CHECK(bids[1].price == 10003 && bids[1].qty == 200);  // 10004 gap skipped
+
+    BookLevel asks[3];
+    int na = book.top_asks(asks, 3);
+    CHECK(na == 2);
+    CHECK(asks[0].price == 10008 && asks[0].qty == 75);   // lowest ask first
+    CHECK(asks[1].price == 10009 && asks[1].qty == 80);
+}
+
 int main() {
     test_add();
     test_cancel();
     test_execute();
     test_bounds();
+    test_snapshot();
 
     if (failures == 0) {
         std::puts("all tests passed");
