@@ -30,3 +30,8 @@ target_compile_options(crypto PRIVATE -O2)
 add_executable(signals src/signals_main.cpp src/itch_parser.cpp src/signals.cpp src/order_book.cpp)
 target_include_directories(signals PRIVATE src)
 target_compile_options(signals PRIVATE -O2)
+
+# bookTicker (crypto L1) stdin -> 100ms signals CSV (Phase-4 crypto study)
+add_executable(bookticker src/bookticker_main.cpp src/signals.cpp)
+target_include_directories(bookticker PRIVATE src)
+target_compile_options(bookticker PRIVATE -O2)
