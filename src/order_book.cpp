@@ -5,6 +5,7 @@ OrderBook::OrderBook(Price base_tick, std::size_t num_ticks)
 
 void OrderBook::add(OrderId id, Side side, Price price, Quantity qty) {
     int i = index(price);
+    if (!in_range(i)) { ++dropped_; return; }   // price outside our band, skip it
     auto& book = (side == Side::Buy) ? bids_ : asks_;
     PriceLevel& lvl = book[i];
 
@@ -52,8 +53,10 @@ void OrderBook::execute(OrderId id, Quantity qty) {
 }
 
 Quantity OrderBook::qty_at(Side side, Price price) const {
+    int i = index(price);
+    if (!in_range(i)) return 0;
     const auto& book = (side == Side::Buy) ? bids_ : asks_;
-    return book[index(price)].total_qty;
+    return book[i].total_qty;
 }
 
 void OrderBook::remove(Order& o) {

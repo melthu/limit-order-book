@@ -43,9 +43,11 @@ public:
     Quantity best_ask_qty() const { return asks_[best_ask_idx_].total_qty; }
 
     Quantity qty_at(Side side, Price price) const;
+    std::size_t dropped() const { return dropped_; }  // orders skipped as out of range
 
 private:
     int  index(Price p) const { return p - base_tick_; }
+    bool in_range(int i) const { return i >= 0 && i < static_cast<int>(bids_.size()); }
     void remove(Order& o);          // unlink from its level, fix total + best
     void rescan_best_bid();         // best bid emptied, walk down to next live level
     void rescan_best_ask();
@@ -55,4 +57,5 @@ private:
     int   best_bid_idx_ = -1;                    // -1 means empty
     int   best_ask_idx_ = -1;
     Price base_tick_;
+    std::size_t dropped_ = 0;                    // count of out-of-range adds
 };
