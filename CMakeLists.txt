@@ -20,3 +20,8 @@ target_compile_options(obe PRIVATE -O2)
 add_executable(itch src/itch_main.cpp src/itch_parser.cpp src/order_book.cpp)
 target_include_directories(itch PRIVATE src)
 target_compile_options(itch PRIVATE -O2)
+
+# live crypto feed driver (reads depth snapshots from stdin)
+add_executable(crypto src/crypto_main.cpp src/crypto_parser.cpp src/order_book.cpp)
+target_include_directories(crypto PRIVATE src)
+target_compile_options(crypto PRIVATE -O2)
