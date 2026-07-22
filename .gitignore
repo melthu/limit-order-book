@@ -1,7 +1,9 @@
 # Local planning / assistant files — kept out of the repo
 notes.md
 CLAUDE.md
+# whiteboards are gitignored, but the live dashboard page IS part of the repo
 *.html
+!scripts/dashboard.html
 
 # Build artifacts
 build/

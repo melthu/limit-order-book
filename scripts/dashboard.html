@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<!-- phase 5 live dashboard. connects to the python bridge (dashboard_server.py)
+     over a websocket and draws the live order book, the model's decision math,
+     and the paper P&L. no framework, no build step - just open this file.
+     the goal here is legibility: every number says what it is and how it moves
+     the model's decision. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LOB — live dashboard</title>
+<style>
+  :root { --bg:#0e1116; --panel:#171b22; --line:#232a35; --txt:#d6dae0;
+          --dim:#8b95a3; --bid:#26a269; --ask:#e04b4b; --accent:#4a90d9; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--txt);
+         font:13px/1.45 ui-monospace,Menlo,Consolas,monospace; }
+  header { padding:14px 20px; border-bottom:1px solid var(--line); }
+  header h1 { margin:0; font-size:15px; font-weight:600; }
+  header .note { color:var(--dim); font-size:11px; margin-top:4px; max-width:1100px; }
+  #conn { color:var(--ask); font-size:12px; }
+  #conn.up { color:var(--bid); }
+  .wrap { display:grid; grid-template-columns:320px 1fr; gap:16px; padding:16px 20px; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:14px; margin-bottom:16px; }
+  .panel h2 { margin:0 0 4px; font-size:11px; font-weight:600; color:var(--dim);
+              text-transform:uppercase; letter-spacing:.06em; }
+  .panel .sub { color:var(--dim); font-size:11px; margin:0 0 12px; }
+  /* order book ladder */
+  .row { display:grid; grid-template-columns:74px 1fr 60px; align-items:center; gap:8px; height:20px; }
+  .row .px { text-align:right; }
+  .row .sz { text-align:right; font-size:11px; color:var(--dim); }
+  .row .bar { height:16px; border-radius:2px; }
+  .ask .bar { background:rgba(224,75,75,.34); }  .ask .px { color:var(--ask); }
+  .bid .bar { background:rgba(38,162,105,.34); }  .bid .px { color:var(--bid); }
+  .mid { text-align:center; padding:6px 0; margin:4px 0; border-top:1px solid var(--line);
+         border-bottom:1px solid var(--line); font-size:15px; }
+  .mid small { color:var(--dim); }
+  /* signal / decision rows */
+  .sig { padding:10px 0; border-top:1px solid var(--line); }
+  .sig:first-of-type { border-top:none; }
+  .sig .top { display:flex; justify-content:space-between; align-items:baseline; }
+  .sig .name { font-weight:600; }
+  .sig .val { font-size:16px; }
+  .sig .desc { color:var(--dim); font-size:11px; margin:3px 0 7px; }
+  /* contribution bar: diverges from a centre line, green = pushes long, red = short */
+  .contrib { height:20px; position:relative; background:#10141a; border-radius:3px; }
+  .contrib .zero { position:absolute; left:50%; top:0; bottom:0; width:1px; background:#3a424f; }
+  .contrib .fill { position:absolute; top:3px; bottom:3px; border-radius:2px; }
+  .contrib .lab { position:absolute; top:2px; right:8px; font-size:11px; color:var(--dim); }
+  .fc { margin-top:12px; padding-top:12px; border-top:1px solid var(--line);
+        display:flex; justify-content:space-between; align-items:center; }
+  .fc .big { font-size:20px; }
+  .pos { display:inline-block; padding:4px 12px; border-radius:4px; font-weight:600; font-size:14px; }
+  .pos.long  { background:rgba(38,162,105,.2); color:var(--bid); }
+  .pos.short { background:rgba(224,75,75,.2); color:var(--ask); }
+  .pos.flat  { background:var(--line); color:var(--dim); }
+  .rule { color:var(--dim); font-size:11px; margin-top:8px; }
+  /* pnl */
+  .pnlnums { display:flex; gap:28px; margin-bottom:10px; }
+  .pnlnums .k { color:var(--dim); font-size:11px; }
+  .pnlnums .v { font-size:22px; }
+  .green { color:var(--bid); }  .red { color:var(--ask); }
+  canvas { width:100%; height:200px; display:block; }
+  .legend { display:flex; gap:18px; font-size:11px; color:var(--dim); margin-top:8px; }
+  .legend i { display:inline-block; width:10px; height:3px; vertical-align:middle; margin-right:5px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>LOB — live limit order book · Binance.US BTC/USD spot &nbsp;<span id="conn">connecting…</span></h1>
+  <div class="note">The C++ engine rebuilds the book from a live 100ms feed and computes 3 microstructure
+    signals; the browser shows how the frozen phase-4 model turns them into a trade. <b>Illustrative:</b>
+    live feed is spot, the model was trained on futures, so treat the P&amp;L as a demo — the rigorous
+    out-of-sample number is the phase-4 test result.</div>
+</header>
+
+<div class="wrap">
+  <!-- order book -->
+  <div class="panel">
+    <h2>order book</h2>
+    <p class="sub">top 10 levels each side. bar width = resting size. asks (sellers) above, bids (buyers) below.</p>
+    <div id="asks"></div>
+    <div class="mid" id="mid">— <small>mid price</small></div>
+    <div id="bids"></div>
+  </div>
+
+  <div>
+    <!-- decision -->
+    <div class="panel">
+      <h2>signals → model decision</h2>
+      <p class="sub">each signal is standardized and multiplied by its trained weight; the products are
+        its <b>contribution</b> to the predicted move (bps). the model just adds them up.</p>
+
+      <div class="sig" data-k="imb">
+        <div class="top"><span class="name">imbalance</span><span class="val" id="imb">–</span></div>
+        <div class="desc">(bid size − ask size) / total at the touch. +1 = only bids (buyers dominate → tends up), −1 = only asks.</div>
+        <div class="contrib"><div class="zero"></div><div class="fill" id="c_imb"></div><span class="lab" id="l_imb">–</span></div>
+      </div>
+      <div class="sig" data-k="micro">
+        <div class="top"><span class="name">micro_dev</span><span class="val" id="micro">–</span></div>
+        <div class="desc">microprice − mid, in $. size-weighted fair value vs the mid; &gt;0 leans up.</div>
+        <div class="contrib"><div class="zero"></div><div class="fill" id="c_micro"></div><span class="lab" id="l_micro">–</span></div>
+      </div>
+      <div class="sig" data-k="ofi">
+        <div class="top"><span class="name">OFI</span><span class="val" id="ofi">–</span></div>
+        <div class="desc">order-flow imbalance: net signed change in top-of-book size this 100ms. &gt;0 = net buying.</div>
+        <div class="contrib"><div class="zero"></div><div class="fill" id="c_ofi"></div><span class="lab" id="l_ofi">–</span></div>
+      </div>
+
+      <div class="fc">
+        <div>
+          <div class="sub" style="margin:0">forecast: predicted mid move over next <span id="h">–</span>ms</div>
+          <div class="big" id="fc">–</div>
+        </div>
+        <div style="text-align:right">
+          <span id="pos" class="pos flat">FLAT</span>
+          <div class="rule" id="rule">flip to LONG when forecast clears +band, SHORT when it clears −band,
+            else hold — re-checked every 100ms</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- pnl -->
+    <div class="panel">
+      <h2>paper P&amp;L — 1 BTC clip, no fees vs. after fees &nbsp;<span class="sub" id="session" style="text-transform:none"></span></h2>
+      <p class="sub">hold the clip the model points to; P&amp;L = position × mid change. every flip crosses
+        the spread and pays a <b>5 bps taker fee</b> (≈ $<span id="feepertrade">–</span> per trade here).
+        runs perpetually, resets at 7am.</p>
+      <div class="pnlnums">
+        <div><div class="k">gross (no fees)</div><div class="v green" id="gross">$0</div></div>
+        <div><div class="k">net (after fees)</div><div class="v red" id="net">$0</div></div>
+        <div><div class="k">flips / total fees</div><div class="v" id="flips">0 / $0</div></div>
+      </div>
+      <canvas id="chart"></canvas>
+      <div class="legend"><span><i style="background:#26a269"></i>gross</span>
+        <span><i style="background:#e04b4b"></i>net after 5 bps taker</span>
+        <span>— the gross edge is real; fees turn it negative (the phase-4 result, live)</span></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const money = x => (x<0?"-$":"$") + Math.abs(x).toLocaleString(undefined,{maximumFractionDigits:2});
+const CBAR = 0.6;   // full-width contribution = 0.6 bps (imbalance rarely tops this)
+
+function ladder(el, levels, cls, maxq) {
+  el.innerHTML = levels.map(([p,q]) => {
+    const w = maxq>0 ? Math.max(3, q/maxq*100) : 0;   // price | bar | size, own columns
+    return `<div class="row ${cls}"><div class="px">${p.toFixed(2)}</div>
+      <div><div class="bar" style="width:${w}%"></div></div>
+      <div class="sz">${q.toFixed(4)}</div></div>`;
+  }).join("");
+}
+
+// draw one signal's contribution as a bar diverging from the centre line
+function contrib(fill, lab, c) {
+  const w = Math.min(50, Math.abs(c)/CBAR*50);
+  fill.style.background = c>=0 ? "var(--bid)" : "var(--ask)";
+  if (c>=0) { fill.style.left="50%"; fill.style.right=""; fill.style.width=w+"%"; }
+  else      { fill.style.right="50%"; fill.style.left=""; fill.style.width=w+"%"; }
+  lab.textContent = (c>=0?"+":"") + c.toFixed(3) + " bps";
+}
+
+const gh=[], nh=[];   // gross / net history for the chart
+const cv=$("chart"), ctx=cv.getContext("2d");
+function sizeCanvas(){ cv.width=cv.clientWidth*devicePixelRatio; cv.height=cv.clientHeight*devicePixelRatio; }
+sizeCanvas(); addEventListener("resize", sizeCanvas);
+
+function line(arr, lo, hi, color) {
+  const w=cv.width, h=cv.height, n=arr.length;
+  const X=i=>i/(n-1)*w, Y=v=>h-(v-lo)/(hi-lo)*h;
+  ctx.strokeStyle=color; ctx.lineWidth=2*devicePixelRatio;
+  ctx.beginPath(); ctx.moveTo(X(0),Y(arr[0]));
+  for (let i=1;i<n;i++) ctx.lineTo(X(i),Y(arr[i])); ctx.stroke();
+}
+function drawChart() {
+  sizeCanvas();                       // keep the backing store matched to layout
+  const w=cv.width, h=cv.height, n=gh.length;
+  ctx.clearRect(0,0,w,h); if (n<2) return;
+  let lo=Math.min(...gh,...nh,0), hi=Math.max(...gh,...nh,0);
+  if (hi-lo<1e-9){lo-=1;hi+=1;} const pad=(hi-lo)*0.1; lo-=pad; hi+=pad;
+  ctx.strokeStyle="#3a424f"; ctx.lineWidth=devicePixelRatio;   // zero line
+  const zy=h-(0-lo)/(hi-lo)*h; ctx.beginPath(); ctx.moveTo(0,zy); ctx.lineTo(w,zy); ctx.stroke();
+  line(gh,lo,hi,"#26a269"); line(nh,lo,hi,"#e04b4b");
+}
+
+// point the page at the backend. locally it's ws://localhost; on an https page
+// (e.g. github pages) it must be wss:// — set BACKEND below or pass ?ws=wss://host.
+const BACKEND = "";   // e.g. "wss://lob.example.com"  (leave "" for local use)
+const WS_URL = new URLSearchParams(location.search).get("ws")
+   || BACKEND || "ws://localhost:8765";
+
+let curDay = null, lastPush = 0;
+
+function headline(d) {                    // the cumulative P&L numbers
+  $("gross").textContent = money(d.gross);
+  $("net").textContent   = money(d.net);
+  $("net").className = "v " + (d.net>=0?"green":"red");
+  $("flips").textContent = (d.flips||0).toLocaleString() + " / " + money(d.fees);
+}
+
+function seed(d) {                        // running curve handed over on connect
+  gh.length = nh.length = 0;
+  for (const row of d.history) { gh.push(row[1]); nh.push(row[2]); }
+  curDay = d.day;
+  const hh = String(d.reset_hour).padStart(2,"0");
+  $("session").textContent = d.day ? `session ${d.day} · resets ${hh}:00` : "";
+  headline(d); drawChart();
+}
+
+function render(d) {                      // a live tick
+  $("h").textContent = d.h;
+  if (d.day !== curDay) {                 // crossed the 7am reset
+    gh.length = nh.length = 0; curDay = d.day;
+    $("session").textContent = `session ${d.day} · resets 07:00`;
+  }
+  // order book
+  const maxq = Math.max(...d.bids.map(l=>l[1]), ...d.asks.map(l=>l[1]));
+  ladder($("asks"), d.asks.slice().reverse(), "ask", maxq);   // best ask nearest mid
+  ladder($("bids"), d.bids, "bid", maxq);
+  $("mid").innerHTML = d.mid.toLocaleString(undefined,{minimumFractionDigits:2}) + ` <small>mid price</small>`;
+
+  // signals + their contributions to the forecast
+  $("imb").textContent   = (d.imb>=0?"+":"")+d.imb.toFixed(3);
+  $("micro").textContent = (d.micro>=0?"+":"")+d.micro.toFixed(4)+" $";
+  $("ofi").textContent   = (d.ofi>=0?"+":"")+d.ofi.toFixed(4)+" BTC";
+  contrib($("c_imb"),$("l_imb"),d.c_imb);
+  contrib($("c_micro"),$("l_micro"),d.c_micro);
+  contrib($("c_ofi"),$("l_ofi"),d.c_ofi);
+
+  // forecast -> decision, with the $ move it implies over the horizon
+  const usd = d.forecast/1e4*d.mid;
+  $("fc").innerHTML = (d.forecast>=0?"+":"")+d.forecast.toFixed(3)+" bps "
+                    + `<span style="color:var(--dim);font-size:13px">(≈ ${money(usd)} on 1 BTC)</span>`;
+  const pos=$("pos");
+  if (d.pos>0)      { pos.textContent="LONG";  pos.className="pos long"; }
+  else if (d.pos<0) { pos.textContent="SHORT"; pos.className="pos short"; }
+  else              { pos.textContent="FLAT";  pos.className="pos flat"; }
+
+  // numbers update every tick; the chart gets a point every ~5s (server cadence)
+  $("feepertrade").textContent = (5/1e4*d.mid).toFixed(0);
+  headline(d);
+  const now = Date.now();
+  if (now - lastPush >= 5000) {
+    gh.push(d.gross); nh.push(d.net);
+    if (gh.length>20000){ gh.shift(); nh.shift(); }
+    lastPush = now; drawChart();
+  }
+}
+
+function connect() {
+  const ws = new WebSocket(WS_URL);
+  ws.onopen  = () => { $("conn").textContent="● live"; $("conn").className="up"; };
+  ws.onclose = () => { $("conn").textContent="● disconnected"; $("conn").className=""; setTimeout(connect,1500); };
+  ws.onmessage = ev => {
+    const d = JSON.parse(ev.data);
+    if (d.type === "history") seed(d); else render(d);
+  };
+}
+connect();
+</script>
+</body>
+</html>
