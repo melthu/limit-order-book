@@ -97,19 +97,33 @@ def main():
     pd.set_option("display.float_format", lambda v: f"{v:.4f}")
     print("\n" + res.to_string(index=False))
 
-    # the money plot: IC vs horizon per signal
-    fig, ax = plt.subplots(figsize=(7, 4.5))
-    for s in SIGNALS:
-        r = res[res.signal == s]
-        ax.plot(r.h_ms, r.IC, marker="o", label=s)
-    ax.axhline(0, color="#888", lw=.8)
-    ax.set_xscale("log")
-    ax.set_xlabel("horizon h (ms, log)"); ax.set_ylabel("IC  (pearson)")
-    ax.set_title("signal IC vs forward horizon — train block")
-    ax.legend(); fig.tight_layout()
-    out = "analysis/ic_decay.png"
-    fig.savefig(out, dpi=130)
-    print(f"\nwrote {out}")
+    # IC vs horizon per signal — one plot for pearson, one for rank
+    import plotstyle as ps
+    ps.setup()
+
+    def ic_plot(col, ylabel, title, out):
+        fig, ax = plt.subplots(figsize=(7.2, 4.6))
+        ax.axhline(0, color="#9ca3af", lw=.8, zorder=1)
+        for s in SIGNALS:
+            r = res[res.signal == s]
+            ps.line(ax, r.h_ms, r[col], s)
+        # call out where imbalance tops out
+        imb = res[res.signal == "imbalance"]
+        pk = imb.loc[imb[col].idxmax()]
+        ax.annotate(f"imbalance peaks ~{pk[col]:.2f} @ {int(pk.h_ms)} ms",
+                    xy=(pk.h_ms, pk[col]), xytext=(pk.h_ms * 1.15, pk[col] - 0.045),
+                    fontsize=9, color="#374151",
+                    arrowprops=dict(arrowstyle="->", color="#9ca3af", lw=1))
+        ps.finish(ax, HORIZONS_MS, "Forward horizon  (ms, log scale)",
+                  ylabel, title)
+        fig.savefig(out, dpi=150, bbox_inches="tight")
+        print(f"wrote {out}")
+
+    print()
+    ic_plot("IC",      "Information coefficient  (Pearson)",
+            "Pearson IC vs forward horizon", "analysis/ic_decay.png")
+    ic_plot("rank_IC", "Rank IC  (Spearman)",
+            "Rank IC vs forward horizon", "analysis/rank_ic_decay.png")
 
 
 if __name__ == "__main__":

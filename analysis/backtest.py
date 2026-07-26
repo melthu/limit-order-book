@@ -20,6 +20,9 @@
 
 import sys
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
 from common import (TRAIN, TEST, SIGNALS, day_files, load, fwd_return_bps)
 
 HORIZONS_MS = [100, 200, 500, 1000, 2000, 5000]
@@ -82,6 +85,7 @@ def main():
     print(f"{'h_ms':>6} {'trades':>10} {'gross/t':>9} {'t-stat':>8} {'net/t':>9} "
           f"{'breakeven_fee':>14} {'costgate_trades':>16}")
 
+    plot_rows = []          # (h, gross_edge) for the edge-vs-cost figure
     for h in HORIZONS_MS:
         yhat = Xte @ betas[h]
         allt, gate_hits = [], 0
@@ -101,6 +105,38 @@ def main():
         breakeven = gross_t / 2                         # fee/side that would zero it out
         print(f"{h:>6} {len(allt):>10,} {gross_t:>9.4f} {tstat:>8.1f} {net_t:>9.3f} "
               f"{breakeven:>13.3f}  {gate_hits:>16,}")
+        plot_rows.append((h, gross_t))
+
+    # the phase-4b money plot: the raw signal edge per trade vs the cost to trade it.
+    # both in bps on a log axis so the ~2-orders-of-magnitude gap is legible — the
+    # edge grows with horizon but never reaches the cost line, so it's never tradeable.
+    import plotstyle as ps
+    ps.setup()
+    hs = [r[0] for r in plot_rows]
+    gross = [r[1] for r in plot_rows]
+    fig, ax = plt.subplots(figsize=(7.4, 4.6))
+    ax.axhspan(cost, cost * 3, color="#dcfce7", zorder=0)     # the tradeable band
+    ax.text(hs[0], cost * 1.35, "tradeable (edge > cost)", fontsize=9, color="#16a34a")
+    ax.plot(hs, gross, marker="o", ms=7, lw=2.2, color="#2563eb",
+            markeredgecolor="white", markeredgewidth=1, label="gross edge per trade", zorder=3)
+    ax.axhline(cost, color="#dc2626", lw=2, ls=(0, (5, 3)), zorder=2,
+               label=f"cost to trade (1 spread + 2 taker fees ≈ {cost:.0f} bps)")
+    ax.set_xscale("log"); ax.set_yscale("log")
+    ax.set_xticks(hs); ax.set_xticklabels([str(h) for h in hs]); ax.minorticks_off()
+    ax.set_ylim(min(gross) * 0.6, cost * 3)
+    worst, best = cost / max(gross), cost / min(gross)
+    ax.annotate(f"{worst:.0f}–{best:.0f}× short of the cost line",
+                xy=(hs[-1], gross[-1]), xytext=(hs[1], gross[-1] * 2.3),
+                fontsize=9, color="#374151",
+                arrowprops=dict(arrowstyle="->", color="#9ca3af", lw=1))
+    ax.set_xlabel("Forward horizon  (ms, log scale)")
+    ax.set_ylabel("Per-trade P&L  (bps, log scale)")
+    ax.set_title("Per-trade edge vs trading cost, by horizon")
+    ax.spines["top"].set_visible(False); ax.spines["right"].set_visible(False)
+    ax.tick_params(length=0); ax.legend(loc="lower right")
+    out = "analysis/edge_vs_cost.png"
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    print(f"\nwrote {out}")
 
     print("\ngross/t = per-trade bps before fees (raw signal edge) · t-stat over all trades ·")
     print("net/t = gross − round-trip cost · breakeven_fee = the per-side fee that zeroes net ·")
