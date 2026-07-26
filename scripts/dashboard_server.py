@@ -39,7 +39,7 @@ CLIP = 1.0           # fixed 1-BTC clip, so P&L reads directly in dollars
 ENTER_BPS = 0.05     # flip only when the forecast clears this (nets signals, cuts churn)
 RESET_HOUR = 7       # daily "market open": P&L resets at 7am local
 TZ = ZoneInfo(os.environ.get("LOB_TZ", "America/New_York"))
-HIST_SEC = 5         # chart point cadence (the numbers still update every tick)
+HIST_SEC = 1         # chart point cadence (the numbers still update every tick)
 HIST_MAX = 20000
 STATE_FILE = "data/pnl_state.json"
 

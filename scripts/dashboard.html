@@ -7,146 +7,169 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>LOB — live dashboard</title>
+<title>LOB - live dashboard</title>
 <style>
-  :root { --bg:#0e1116; --panel:#171b22; --line:#232a35; --txt:#d6dae0;
-          --dim:#8b95a3; --bid:#26a269; --ask:#e04b4b; --accent:#4a90d9; }
+  :root { --bg:#0d1017; --panel:#151922; --line:#222836; --txt:#dfe4ea;
+          --dim:#8892a0; --faint:#5c6675; --bid:#26a269; --ask:#e04b4b; }
   * { box-sizing:border-box; }
   body { margin:0; background:var(--bg); color:var(--txt);
-         font:13px/1.45 ui-monospace,Menlo,Consolas,monospace; }
-  header { padding:14px 20px; border-bottom:1px solid var(--line); }
-  header h1 { margin:0; font-size:15px; font-weight:600; }
-  header .note { color:var(--dim); font-size:11px; margin-top:4px; max-width:1100px; }
-  #conn { color:var(--ask); font-size:12px; }
-  #conn.up { color:var(--bid); }
-  .wrap { display:grid; grid-template-columns:320px 1fr; gap:16px; padding:16px 20px; }
-  .panel { background:var(--panel); border:1px solid var(--line); border-radius:6px; padding:14px; margin-bottom:16px; }
-  .panel h2 { margin:0 0 4px; font-size:11px; font-weight:600; color:var(--dim);
-              text-transform:uppercase; letter-spacing:.06em; }
-  .panel .sub { color:var(--dim); font-size:11px; margin:0 0 12px; }
+         font:13px/1.5 ui-monospace,Menlo,Consolas,monospace; }
+  header { padding:20px 26px 4px; max-width:1200px; margin:0 auto; }
+  header h1 { margin:0; font-size:16px; font-weight:600; }
+  /* connection status as a small pill (the ● is part of the text set by JS) */
+  #conn { font-size:11px; font-weight:600; margin-left:10px; padding:3px 9px; border-radius:20px;
+          background:var(--line); color:var(--dim); vertical-align:middle; }
+  #conn.up { background:rgba(38,162,105,.16); color:var(--bid); }
+  header .note { color:var(--faint); font-size:12px; margin-top:6px; }
+  .wrap { display:grid; grid-template-columns:270px 1fr; gap:22px; padding:16px 26px 30px;
+          align-items:start; max-width:1200px; margin:0 auto; }
+  .panel { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:18px 20px; margin-bottom:26px; }
+  .panel h2 { margin:0 0 3px; font-size:11px; font-weight:600; color:var(--dim);
+              text-transform:uppercase; letter-spacing:.08em; }
+  .panel .sub { color:var(--faint); font-size:11px; margin:0 0 16px; }
   /* order book ladder */
-  .row { display:grid; grid-template-columns:74px 1fr 60px; align-items:center; gap:8px; height:20px; }
+  .row { display:grid; grid-template-columns:66px 1fr 54px; align-items:center; gap:10px; height:22px; }
   .row .px { text-align:right; }
-  .row .sz { text-align:right; font-size:11px; color:var(--dim); }
-  .row .bar { height:16px; border-radius:2px; }
-  .ask .bar { background:rgba(224,75,75,.34); }  .ask .px { color:var(--ask); }
-  .bid .bar { background:rgba(38,162,105,.34); }  .bid .px { color:var(--bid); }
-  .mid { text-align:center; padding:6px 0; margin:4px 0; border-top:1px solid var(--line);
-         border-bottom:1px solid var(--line); font-size:15px; }
-  .mid small { color:var(--dim); }
-  /* signal / decision rows */
-  .sig { padding:10px 0; border-top:1px solid var(--line); }
-  .sig:first-of-type { border-top:none; }
+  .row .sz { text-align:right; font-size:11px; color:var(--faint); }
+  .row .bar { height:13px; border-radius:3px; }
+  .ask .bar { background:rgba(224,75,75,.26); }  .ask .px { color:var(--ask); }
+  .bid .bar { background:rgba(38,162,105,.26); }  .bid .px { color:var(--bid); }
+  /* the touch = best bid / best ask, where the spread and signals live */
+  .row.touch { background:rgba(255,255,255,.035); border-radius:3px; }
+  .row.touch .px { font-weight:700; }
+  .ask.touch .bar { background:rgba(224,75,75,.5); }
+  .bid.touch .bar { background:rgba(38,162,105,.5); }
+  .mid { text-align:center; padding:9px 0; margin:7px 0; border-top:1px solid var(--line);
+         border-bottom:1px solid var(--line); font-size:17px; font-weight:600; }
+  .mid small { color:var(--faint); font-weight:400; font-size:11px; }
+  .mid .midpx { transition:color .5s ease; }           /* flash then fade back on a tick */
+  .mid .midpx.up   { color:var(--bid); transition:none; }
+  .mid .midpx.down { color:var(--ask); transition:none; }
+  .mid .spread { font-size:11px; font-weight:400; color:var(--faint); margin-top:3px; }
+  /* signal rows */
+  .sig { padding:13px 0; border-top:1px solid var(--line); }
+  .sig:first-of-type { border-top:none; padding-top:2px; }
   .sig .top { display:flex; justify-content:space-between; align-items:baseline; }
   .sig .name { font-weight:600; }
-  .sig .val { font-size:16px; }
-  .sig .desc { color:var(--dim); font-size:11px; margin:3px 0 7px; }
+  .sig .val { font-size:15px; }
+  .sig .desc { color:var(--dim); font-size:11px; margin:2px 0 8px; }
   /* contribution bar: diverges from a centre line, green = pushes long, red = short */
-  .contrib { height:20px; position:relative; background:#10141a; border-radius:3px; }
-  .contrib .zero { position:absolute; left:50%; top:0; bottom:0; width:1px; background:#3a424f; }
+  .contrib { height:18px; position:relative; background:#0e121a; border-radius:4px;
+             box-shadow:inset 1px 0 #2a3240, inset -1px 0 #2a3240; }   /* faint ±0.6 bps edges */
+  .contrib .zero { position:absolute; left:50%; top:0; bottom:0; width:1px; background:#333c4a; }
   .contrib .fill { position:absolute; top:3px; bottom:3px; border-radius:2px; }
-  .contrib .lab { position:absolute; top:2px; right:8px; font-size:11px; color:var(--dim); }
-  .fc { margin-top:12px; padding-top:12px; border-top:1px solid var(--line);
+  .contrib .lab { position:absolute; top:1px; right:8px; font-size:11px; color:var(--dim); }
+  /* forecast -> decision */
+  .fc { margin-top:16px; padding-top:16px; border-top:1px solid var(--line);
         display:flex; justify-content:space-between; align-items:center; }
-  .fc .big { font-size:20px; }
-  .pos { display:inline-block; padding:4px 12px; border-radius:4px; font-weight:600; font-size:14px; }
-  .pos.long  { background:rgba(38,162,105,.2); color:var(--bid); }
-  .pos.short { background:rgba(224,75,75,.2); color:var(--ask); }
+  .fc .lead { color:var(--faint); font-size:11px; }
+  .fc .big { font-size:24px; font-weight:600; margin-top:3px; }
+  .fc .sumnote { color:var(--faint); font-size:11px; margin-top:3px; }
+  .pos { display:inline-block; padding:8px 18px; border-radius:6px; font-weight:700; font-size:16px; letter-spacing:.04em; }
+  .pos.long  { background:rgba(38,162,105,.18); color:var(--bid); }
+  .pos.short { background:rgba(224,75,75,.18); color:var(--ask); }
   .pos.flat  { background:var(--line); color:var(--dim); }
-  .rule { color:var(--dim); font-size:11px; margin-top:8px; }
+  .rule { color:var(--faint); font-size:11px; margin-top:8px; max-width:250px; }
   /* pnl */
-  .pnlnums { display:flex; gap:28px; margin-bottom:10px; }
-  .pnlnums .k { color:var(--dim); font-size:11px; }
-  .pnlnums .v { font-size:22px; }
+  .pnlnums { display:flex; gap:38px; margin-bottom:14px; }
+  .pnlnums .k { color:var(--faint); font-size:11px; margin-bottom:3px; }
+  .pnlnums .v { font-size:24px; font-weight:600; }
+  .pnlnums .bps { font-size:11px; color:var(--faint); margin-top:2px; }
   .green { color:var(--bid); }  .red { color:var(--ask); }
-  canvas { width:100%; height:200px; display:block; }
-  .legend { display:flex; gap:18px; font-size:11px; color:var(--dim); margin-top:8px; }
-  .legend i { display:inline-block; width:10px; height:3px; vertical-align:middle; margin-right:5px; }
+  canvas { width:100%; height:180px; display:block; }
+  .legend { display:flex; gap:20px; flex-wrap:wrap; font-size:11px; color:var(--faint); margin-top:10px; }
+  .legend i { display:inline-block; width:12px; height:3px; vertical-align:middle; margin-right:6px; border-radius:2px; }
+  footer { padding:4px 26px 26px; color:var(--faint); font-size:11px; max-width:1200px; margin:0 auto; }
 </style>
 </head>
 <body>
 <header>
-  <h1>LOB — live limit order book · Binance.US BTC/USD spot &nbsp;<span id="conn">connecting…</span></h1>
-  <div class="note">The C++ engine rebuilds the book from a live 100ms feed and computes 3 microstructure
-    signals; the browser shows how the frozen phase-4 model turns them into a trade. <b>Illustrative:</b>
-    live feed is spot, the model was trained on futures, so treat the P&amp;L as a demo — the rigorous
-    out-of-sample number is the phase-4 test result.</div>
+  <h1>Binance.US BTC/USD<span id="conn">connecting…</span></h1>
+  <div class="note">The C++ engine reconstructs the order book from the live feed and computes three
+    microstructure signals on every update. A linear OLS model predicts the mid-price change over the
+    next 1000ms and paper-trades on it.</div>
 </header>
 
 <div class="wrap">
   <!-- order book -->
-  <div class="panel">
+  <div class="panel book">
     <h2>order book</h2>
-    <p class="sub">top 10 levels each side. bar width = resting size. asks (sellers) above, bids (buyers) below.</p>
-    <div id="asks"></div>
-    <div class="mid" id="mid">— <small>mid price</small></div>
-    <div id="bids"></div>
+    <p class="sub">top 15 levels each side</p>
+    <div class="ladder">
+      <div id="asks"></div>
+      <div class="mid">
+        <div><span class="midpx" id="midpx">–</span> <small>mid</small></div>
+        <div class="spread" id="spread">spread –</div>
+      </div>
+      <div id="bids"></div>
+    </div>
   </div>
 
   <div>
     <!-- decision -->
     <div class="panel">
-      <h2>signals → model decision</h2>
-      <p class="sub">each signal is standardized and multiplied by its trained weight; the products are
-        its <b>contribution</b> to the predicted move (bps). the model just adds them up.</p>
+      <h2>signals → decision</h2>
+      <p class="sub">each signal × its trained weight = its push on the forecast in bps (bars span ±0.6 bps)</p>
 
-      <div class="sig" data-k="imb">
-        <div class="top"><span class="name">imbalance</span><span class="val" id="imb">–</span></div>
-        <div class="desc">(bid size − ask size) / total at the touch. +1 = only bids (buyers dominate → tends up), −1 = only asks.</div>
+      <div class="sig">
+        <div class="top"><span class="name">Imbalance</span><span class="val" id="imb">–</span></div>
+        <div class="desc">(Qb − Qa) / (Qb + Qa)</div>
         <div class="contrib"><div class="zero"></div><div class="fill" id="c_imb"></div><span class="lab" id="l_imb">–</span></div>
       </div>
-      <div class="sig" data-k="micro">
-        <div class="top"><span class="name">micro_dev</span><span class="val" id="micro">–</span></div>
-        <div class="desc">microprice − mid, in $. size-weighted fair value vs the mid; &gt;0 leans up.</div>
+      <div class="sig">
+        <div class="top"><span class="name">Microprice Deviation</span><span class="val" id="micro">–</span></div>
+        <div class="desc">(Pa·Qb + Pb·Qa) / (Qb + Qa) − mid</div>
         <div class="contrib"><div class="zero"></div><div class="fill" id="c_micro"></div><span class="lab" id="l_micro">–</span></div>
       </div>
-      <div class="sig" data-k="ofi">
-        <div class="top"><span class="name">OFI</span><span class="val" id="ofi">–</span></div>
-        <div class="desc">order-flow imbalance: net signed change in top-of-book size this 100ms. &gt;0 = net buying.</div>
+      <div class="sig">
+        <div class="top"><span class="name">Order Flow Imbalance</span><span class="val" id="ofi">–</span></div>
+        <div class="desc">Σ (ΔQb − ΔQa) at the touch (full size on a best-price move)</div>
         <div class="contrib"><div class="zero"></div><div class="fill" id="c_ofi"></div><span class="lab" id="l_ofi">–</span></div>
       </div>
 
       <div class="fc">
         <div>
-          <div class="sub" style="margin:0">forecast: predicted mid move over next <span id="h">–</span>ms</div>
+          <div class="lead">forecast · predicted mid move, next <span id="h">–</span>ms</div>
           <div class="big" id="fc">–</div>
+          <div class="sumnote">= sum of the three contributions above</div>
         </div>
-        <div style="text-align:right">
-          <span id="pos" class="pos flat">FLAT</span>
-          <div class="rule" id="rule">flip to LONG when forecast clears +band, SHORT when it clears −band,
-            else hold — re-checked every 100ms</div>
-        </div>
+        <span id="pos" class="pos flat">FLAT</span>
       </div>
     </div>
 
     <!-- pnl -->
     <div class="panel">
-      <h2>paper P&amp;L — 1 BTC clip, no fees vs. after fees &nbsp;<span class="sub" id="session" style="text-transform:none"></span></h2>
-      <p class="sub">hold the clip the model points to; P&amp;L = position × mid change. every flip crosses
-        the spread and pays a <b>5 bps taker fee</b> (≈ $<span id="feepertrade">–</span> per trade here).
-        runs perpetually, resets at 7am.</p>
+      <h2>paper P&amp;L · 1 BTC clip<span class="sub" id="session" style="text-transform:none;margin-left:10px"></span></h2>
+      <p class="sub">position × mid change; each flip pays a 5 bps taker fee (≈ $<span id="feepertrade">–</span>)</p>
       <div class="pnlnums">
-        <div><div class="k">gross (no fees)</div><div class="v green" id="gross">$0</div></div>
-        <div><div class="k">net (after fees)</div><div class="v red" id="net">$0</div></div>
-        <div><div class="k">flips / total fees</div><div class="v" id="flips">0 / $0</div></div>
+        <div><div class="k">gross</div><div class="v green" id="gross">$0</div><div class="bps" id="gross_bps">–</div></div>
+        <div><div class="k">net</div><div class="v red" id="net">$0</div><div class="bps" id="net_bps">–</div></div>
+        <div><div class="k">flips / fees</div><div class="v" id="flips">0 / $0</div></div>
       </div>
       <canvas id="chart"></canvas>
-      <div class="legend"><span><i style="background:#26a269"></i>gross</span>
-        <span><i style="background:#e04b4b"></i>net after 5 bps taker</span>
-        <span>— the gross edge is real; fees turn it negative (the phase-4 result, live)</span></div>
+      <div class="legend"><span><i style="background:#26a269"></i>gross (no fees)</span>
+        <span><i style="background:#e04b4b"></i>net (after fees)</span></div>
     </div>
   </div>
 </div>
 
+<footer>Illustrative demo: the live feed is Binance.US spot while the model was trained on Binance
+  futures. The rigorous result is in the README.</footer>
+
 <script>
 const $ = id => document.getElementById(id);
 const money = x => (x<0?"-$":"$") + Math.abs(x).toLocaleString(undefined,{maximumFractionDigits:2});
+const fmtBps = x => (x>=0?"+":"") + x.toFixed(2) + " bps";
+const MONTHS = ["January","February","March","April","May","June",
+                "July","August","September","October","November","December"];
+const fmtDay = iso => { const [y,m,d] = iso.split("-"); return `${MONTHS[+m-1]} ${+d}, ${y}`; };  // 2024-07-15 -> July 15, 2024
 const CBAR = 0.6;   // full-width contribution = 0.6 bps (imbalance rarely tops this)
 
-function ladder(el, levels, cls, maxq) {
-  el.innerHTML = levels.map(([p,q]) => {
+function ladder(el, levels, cls, maxq, touchIdx) {
+  el.innerHTML = levels.map(([p,q], i) => {
     const w = maxq>0 ? Math.max(3, q/maxq*100) : 0;   // price | bar | size, own columns
-    return `<div class="row ${cls}"><div class="px">${p.toFixed(2)}</div>
+    const t = i===touchIdx ? " touch" : "";           // best bid/ask = the touch, highlighted
+    return `<div class="row ${cls}${t}"><div class="px">${p.toFixed(2)}</div>
       <div><div class="bar" style="width:${w}%"></div></div>
       <div class="sz">${q.toFixed(4)}</div></div>`;
   }).join("");
@@ -185,18 +208,22 @@ function drawChart() {
 }
 
 // point the page at the backend. locally it's ws://localhost; on an https page
-// (e.g. github pages) it must be wss:// — set BACKEND below or pass ?ws=wss://host.
+// (e.g. github pages) it must be wss://, so set BACKEND below or pass ?ws=wss://host.
 const BACKEND = "";   // e.g. "wss://lob.example.com"  (leave "" for local use)
 const WS_URL = new URLSearchParams(location.search).get("ws")
    || BACKEND || "ws://localhost:8765";
 
-let curDay = null, lastPush = 0;
+let curDay = null, lastPush = 0, prevMid = null;
 
 function headline(d) {                    // the cumulative P&L numbers
   $("gross").textContent = money(d.gross);
   $("net").textContent   = money(d.net);
   $("net").className = "v " + (d.net>=0?"green":"red");
   $("flips").textContent = (d.flips||0).toLocaleString() + " / " + money(d.fees);
+  if (prevMid) {                          // same P&L as bps on the 1-BTC notional (size-agnostic)
+    $("gross_bps").textContent = fmtBps(d.gross/prevMid*1e4);
+    $("net_bps").textContent   = fmtBps(d.net/prevMid*1e4);
+  }
 }
 
 function seed(d) {                        // running curve handed over on connect
@@ -204,7 +231,7 @@ function seed(d) {                        // running curve handed over on connec
   for (const row of d.history) { gh.push(row[1]); nh.push(row[2]); }
   curDay = d.day;
   const hh = String(d.reset_hour).padStart(2,"0");
-  $("session").textContent = d.day ? `session ${d.day} · resets ${hh}:00` : "";
+  $("session").textContent = d.day ? `session ${fmtDay(d.day)} · resets ${hh}:00` : "";
   headline(d); drawChart();
 }
 
@@ -212,13 +239,23 @@ function render(d) {                      // a live tick
   $("h").textContent = d.h;
   if (d.day !== curDay) {                 // crossed the 7am reset
     gh.length = nh.length = 0; curDay = d.day;
-    $("session").textContent = `session ${d.day} · resets 07:00`;
+    $("session").textContent = `session ${fmtDay(d.day)} · resets 07:00`;
   }
   // order book
   const maxq = Math.max(...d.bids.map(l=>l[1]), ...d.asks.map(l=>l[1]));
-  ladder($("asks"), d.asks.slice().reverse(), "ask", maxq);   // best ask nearest mid
-  ladder($("bids"), d.bids, "bid", maxq);
-  $("mid").innerHTML = d.mid.toLocaleString(undefined,{minimumFractionDigits:2}) + ` <small>mid price</small>`;
+  ladder($("asks"), d.asks.slice().reverse(), "ask", maxq, d.asks.length-1); // best ask = last, nearest mid
+  ladder($("bids"), d.bids, "bid", maxq, 0);                                  // best bid = first, nearest mid
+  // mid: flash green/red on an up/down tick, then fade back
+  const midpx = $("midpx");
+  if (prevMid !== null && d.mid !== prevMid) {
+    const cls = d.mid > prevMid ? "up" : "down";
+    midpx.classList.remove("up","down"); midpx.classList.add(cls);
+    requestAnimationFrame(() => requestAnimationFrame(() => midpx.classList.remove(cls)));
+  }
+  midpx.textContent = d.mid.toLocaleString(undefined,{minimumFractionDigits:2});
+  prevMid = d.mid;
+  const spr = d.asks[0][0] - d.bids[0][0];         // best ask − best bid
+  $("spread").textContent = `spread $${spr.toFixed(2)} · ${(spr/d.mid*1e4).toFixed(4)} bps`;
 
   // signals + their contributions to the forecast
   $("imb").textContent   = (d.imb>=0?"+":"")+d.imb.toFixed(3);
@@ -237,11 +274,11 @@ function render(d) {                      // a live tick
   else if (d.pos<0) { pos.textContent="SHORT"; pos.className="pos short"; }
   else              { pos.textContent="FLAT";  pos.className="pos flat"; }
 
-  // numbers update every tick; the chart gets a point every ~5s (server cadence)
+  // numbers update every tick; the chart gets a point every ~1s (server cadence)
   $("feepertrade").textContent = (5/1e4*d.mid).toFixed(0);
   headline(d);
   const now = Date.now();
-  if (now - lastPush >= 5000) {
+  if (now - lastPush >= 1000) {
     gh.push(d.gross); nh.push(d.net);
     if (gh.length>20000){ gh.shift(); nh.shift(); }
     lastPush = now; drawChart();

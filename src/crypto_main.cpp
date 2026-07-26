@@ -8,7 +8,7 @@
 // BTC in cents; band spans +/- $10k around the opening price
 static const std::size_t TICKS = 2000000;
 static const long        BAND  = 1000000;   // cents below first bid for base
-static const int         LEVELS = 10;       // ladder depth for the dashboard
+static const int         LEVELS = 15;       // ladder depth for the dashboard
 
 // dump top-of-book + signals for the python dashboard, one line per snapshot.
 // D <mid> <imb> <micro_dev> <ofi>  B <p> <q> ...(10)  A <p> <q> ...(10)
