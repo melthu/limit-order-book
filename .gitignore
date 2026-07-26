@@ -2,6 +2,7 @@
 notes.md
 CLAUDE.md
 # whiteboards are gitignored, but the live dashboard page IS part of the repo
+whiteboards/
 *.html
 !scripts/dashboard.html
 
