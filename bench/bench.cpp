@@ -1,4 +1,5 @@
 #include "order_book.hpp"
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <random>
@@ -25,36 +26,44 @@ int main() {
     }
 
     using clk = std::chrono::steady_clock;
-    auto ns = [](clk::time_point a, clk::time_point b) {
+    auto now = []{ return clk::now(); };
+    auto ns  = [](clk::time_point a, clk::time_point b) {
         return std::chrono::duration_cast<std::chrono::nanoseconds>(b - a).count();
     };
 
-    OrderBook book(base, ticks);
+    // clock granularity = smallest nonzero gap between two reads. on apple silicon
+    // this is ~42ns (24MHz timer), so any op faster than that reads as 0 or one tick
+    // -> per-op p50 is below the timer floor; the tail (p99.9/max) is the real signal.
+    long gran = 1'000'000;
+    for (int i = 0; i < 100000; ++i) { long d = ns(now(), now()); if (d > 0) gran = std::min<long>(gran, d); }
 
-    auto t0 = clk::now();
-    for (int i = 0; i < N; ++i) book.add(i, side[i], px[i], qty[i]);
-    auto t1 = clk::now();
+    OrderBook book(base, ticks, N);   // reserve the id map: all N orders rest at once
+    std::vector<long> lat(N);   // per-op timings, preallocated (no alloc in the hot loop)
 
-    // shave one lot off each order (a few fully fill and drop out)
-    auto t2 = clk::now();
-    for (int i = 0; i < N; ++i) book.execute(i, 1);
-    auto t3 = clk::now();
-
-    auto t4 = clk::now();
-    for (int i = 0; i < N; ++i) book.cancel(i);
-    auto t5 = clk::now();
-
-    struct Row { const char* name; long total; } rows[] = {
-        {"add",     ns(t0, t1)},
-        {"execute", ns(t2, t3)},
-        {"cancel",  ns(t4, t5)},
+    // one pass = time each op individually, report aggregate throughput + percentiles
+    auto run = [&](const char* name, auto&& op) {
+        auto t0 = now();
+        for (int i = 0; i < N; ++i) {
+            auto a = now();
+            op(i);
+            lat[i] = ns(a, now());
+        }
+        double agg = double(ns(t0, now())) / N;              // clean absolute number
+        std::sort(lat.begin(), lat.end());
+        auto pct = [&](double p){ return lat[std::size_t(p * (N - 1))]; };
+        std::printf("%-8s %8.1f %8.1f %8ld %8ld %8ld %8ld\n",
+                    name, agg, 1000.0 / agg, pct(0.50), pct(0.99), pct(0.999), lat[N - 1]);
     };
-    std::printf("%-8s %10s %12s\n", "op", "ns/op", "M ops/sec");
-    for (auto& r : rows) {
-        double per = double(r.total) / N;
-        std::printf("%-8s %10.1f %12.1f\n", r.name, per, 1000.0 / per);
-    }
+
+    std::printf("clock granularity: %ld ns  (per-op p50 sits below this floor)\n\n", gran);
+    std::printf("%-8s %8s %8s %8s %8s %8s %8s\n",
+                "op", "ns/op", "Mops/s", "p50", "p99", "p99.9", "max");
+
+    run("add",     [&](int i){ book.add(i, side[i], px[i], qty[i]); });
+    run("execute", [&](int i){ book.execute(i, 1); });   // shave one lot; a few fully fill
+    run("cancel",  [&](int i){ book.cancel(i); });
+
     // read final state so the loops can't be optimized away
-    std::printf("final: has_bid=%d has_ask=%d\n", book.has_bid(), book.has_ask());
+    std::printf("\nfinal: has_bid=%d has_ask=%d\n", book.has_bid(), book.has_ask());
     return 0;
 }

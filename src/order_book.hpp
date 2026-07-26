@@ -34,8 +34,10 @@ struct BookLevel {
 
 class OrderBook {
 public:
-    // base_tick is the price at index 0; num_ticks is how many levels we reserve
-    OrderBook(Price base_tick, std::size_t num_ticks);
+    // base_tick is the price at index 0; num_ticks is how many levels we reserve.
+    // expected_orders pre-sizes the id map so a busy feed doesn't rehash mid-stream
+    // (that rehash was the p99.9 tail on add) — just a hint, the map still grows.
+    OrderBook(Price base_tick, std::size_t num_ticks, std::size_t expected_orders = 1024);
 
     void add(OrderId id, Side side, Price price, Quantity qty);
     bool cancel(OrderId id);                   // false if id isn't resting
@@ -68,5 +70,5 @@ private:
     int   best_bid_idx_ = -1;                    // -1 means empty
     int   best_ask_idx_ = -1;
     Price base_tick_;
-    std::size_t dropped_ = 0;                    // count of out-of-range adds
+    std::size_t dropped_ = 0;                    // adds skipped: out of range or duplicate id
 };

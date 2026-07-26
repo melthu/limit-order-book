@@ -113,6 +113,20 @@ static void test_bounds() {
     CHECK(book.qty_at(Side::Buy, 9000) == 0);  // out-of-range query is safe
 }
 
+static void test_duplicate_id() {
+    OrderBook book(10000, 1000);
+    book.add(1, Side::Buy, 10005, 100);
+    book.add(1, Side::Buy, 10003, 999);    // same id again -> ignored, not re-linked
+
+    CHECK(book.dropped() == 1);            // counted as skipped
+    CHECK(book.best_bid() == 10005);       // original order untouched
+    CHECK(book.best_bid_qty() == 100);
+    CHECK(book.qty_at(Side::Buy, 10003) == 0);  // the bogus re-add never landed
+
+    book.cancel(1);                        // the one real order still cancels cleanly
+    CHECK(!book.has_bid());
+}
+
 static void test_snapshot() {
     OrderBook book(10000, 1000);
     book.add(1, Side::Buy, 10005, 100);
@@ -187,6 +201,7 @@ int main() {
     test_cancel();
     test_execute();
     test_bounds();
+    test_duplicate_id();
     test_snapshot();
     test_return_values();
     test_find();

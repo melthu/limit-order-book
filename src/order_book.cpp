@@ -1,17 +1,24 @@
 #include "order_book.hpp"
 
-OrderBook::OrderBook(Price base_tick, std::size_t num_ticks)
-    : bids_(num_ticks), asks_(num_ticks), base_tick_(base_tick) {}
+OrderBook::OrderBook(Price base_tick, std::size_t num_ticks, std::size_t expected_orders)
+    : bids_(num_ticks), asks_(num_ticks), base_tick_(base_tick) {
+    orders_.reserve(expected_orders);   // avoid rehashing while the book fills up
+}
 
 void OrderBook::add(OrderId id, Side side, Price price, Quantity qty) {
     int i = index(price);
     if (!in_range(i)) { ++dropped_; return; }   // price outside our band, skip it
+
+    // store it in the map first so its address stays put for the list pointers.
+    // a duplicate id would repoint an already-linked node and corrupt its old
+    // level, so ignore it — a clean feed never re-adds a live id.
+    auto [it, inserted] = orders_.try_emplace(id);
+    if (!inserted) { ++dropped_; return; }
+    Order& o = it->second;
+    o.id = id; o.side = side; o.price = price; o.qty = qty;
+
     auto& book = (side == Side::Buy) ? bids_ : asks_;
     PriceLevel& lvl = book[i];
-
-    // store it in the map first so its address stays put for the list pointers
-    Order& o = orders_[id];
-    o.id = id; o.side = side; o.price = price; o.qty = qty;
 
     // append to the back of the level's queue (newest fills last)
     o.prev = lvl.tail;
