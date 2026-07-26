@@ -196,3 +196,7 @@ Targets: `tests`, `bench`, `obe` (LOBSTER validate), `itch` (ITCH validate),
 `signals` (ITCH → signals CSV), `bookticker` (crypto futures → signals CSV),
 `crypto` (live spot depth). The Python analysis + dashboard use a venv (`numpy`,
 `websockets`, plus `pandas`/`scipy`/`matplotlib` for the study).
+
+## License
+
+GNU General Public License v3.0 — see [LICENSE](LICENSE).
