@@ -155,15 +155,17 @@ all horizons.
 
 We score the frozen model once, on the 10 held-out days.
 
-The forecast generalizes. Its combined IC is 0.25 to 0.27, as high on the test days as on the
-training days, indicating no overfitting, and higher than any single signal.
+The forecast generalizes. Its combined IC is 0.25 to 0.27 from 100 ms to 1 s, falling to 0.17 at
+5 s. At every horizon it is as high on the test days as on the training days, indicating the model
+did not overfit.
 
 It is not, however, tradeable as a retail taker. A taker round trip crosses the spread and pays the
 fee twice, roughly 10 bps in total. The gross edge per trade is a small fraction of this. It
 increases with horizon, as longer horizons capture larger moves, but reaches only about 0.23 bps at
-5 s. The break-even fee is 0.006 to 0.113 bps per side, a fraction of a basis point and
-characteristic of market-maker rather than taker economics. Under the rule that we trade only when
-the predicted move exceeds the cost, no trade qualifies at any horizon.
+5 s. The edge is significant: it is positive on all 10 test days, and a one-sample t-test on the
+daily means gives p < 0.01. The break-even fee is 0.006 to 0.113 bps per side, a fraction of a
+basis point and characteristic of market-maker rather than taker economics. Under the rule that we
+trade only when the predicted move exceeds the cost, no trade qualifies at any horizon.
 
 <img src="analysis/edge_vs_cost.png" width="620" alt="per-trade edge vs cost to trade, by horizon">
 
