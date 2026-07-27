@@ -170,7 +170,7 @@ the predicted move exceeds the cost, no trade qualifies at any horizon.
 The two metrics should be read separately. Predictive accuracy is highest at short horizons (around
 200 ms), whereas per-trade edge is largest at long ones (around 5 s), where the moves are bigger
 despite a lower hit rate. Neither implies profitability, which requires the edge to exceed the cost.
-We show the microstrucutre signals are predictive, but not by enough to overcome the spread.
+We show the microstructure signals are predictive, but not by enough to overcome the spread.
 
 ## Live dashboard
 
